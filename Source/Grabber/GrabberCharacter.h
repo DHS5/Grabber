@@ -45,7 +45,7 @@ class AGrabberCharacter : public ACharacter
 	UInputAction* LookAction;
 
 public:
-	AGrabberCharacter();
+	AGrabberCharacter(const FObjectInitializer& ObjectInitializer);
 	
 
 protected:
