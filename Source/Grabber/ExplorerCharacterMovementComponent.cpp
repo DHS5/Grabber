@@ -116,6 +116,7 @@ FNetworkPredictionData_Client* UExplorerCharacterMovementComponent::GetPredictio
 UExplorerCharacterMovementComponent::UExplorerCharacterMovementComponent()
 {
 	Safe_bWantsToSprint = false;
+	Safe_bWantsToGlide = false;
 }
 
 void UExplorerCharacterMovementComponent::InitializeComponent()
@@ -130,16 +131,7 @@ void UExplorerCharacterMovementComponent::InitializeComponent()
 #pragma region Movement Important Methods
 
 void UExplorerCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaSeconds)
-{
-	//if (IsMovementMode(MOVE_Falling) && Safe_bWantsToGlide)
-	//{
-	//	SetMovementMode(MOVE_Custom, CMOVE_Glide);
-	//}
-	//if (IsCustomMovementMode(CMOVE_Glide) && !Safe_bWantsToGlide)
-	//{
-	//	SetMovementMode(MOVE_Falling);
-	//}
-	
+{	
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
 
@@ -159,10 +151,8 @@ void UExplorerCharacterMovementComponent::OnMovementModeChanged(EMovementMode Pr
 {
 	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
 
-	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMOVE_Glide) OnExitGlide();
 	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMOVE_Hook) OnExitHook();
 
-	if (IsCustomMovementMode(CMOVE_Glide)) OnEnterGlide();
 	if (IsCustomMovementMode(CMOVE_Hook)) OnEnterHook(PreviousMovementMode, static_cast<EExplorerCustomMovementMode>(PreviousCustomMode));
 }
 
@@ -172,9 +162,6 @@ void UExplorerCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iter
 
 	switch (CustomMovementMode)
 	{
-	case CMOVE_Glide:
-		PhysGlide(deltaTime, Iterations);
-		break;
 	case CMOVE_Hook:
 		PhysHook(deltaTime, Iterations);
 		break;
@@ -214,7 +201,14 @@ FVector UExplorerCharacterMovementComponent::NewFallVelocity(const FVector& Init
 
 	if (Safe_bWantsToGlide)
 	{
-		Result.Z = FMath::Max(Result.Z, MinGlideZVelocity);
+		if (Result.Z < MinGlideZVelocity)
+		{
+			Result.Z = FMath::Lerp(Result.Z, MinGlideZVelocity, GlideLerpFactor);
+		}
+		else if (Result.Z > MaxGlideZVelocity)
+		{
+			Result.Z = FMath::Lerp(Result.Z, MaxGlideZVelocity, GlideLerpFactor);
+		}
 	}
 
 	return Result;
@@ -241,27 +235,14 @@ void UExplorerCharacterMovementComponent::SprintReleased()
 void UExplorerCharacterMovementComponent::GlidePressed()
 {
 	Safe_bWantsToGlide = true;
+	DefaultAirControl = AirControl;
+	AirControl = GlideAirControl;
 }
 
 void UExplorerCharacterMovementComponent::GlideReleased()
 {
 	Safe_bWantsToGlide = false;
-}
-
-void UExplorerCharacterMovementComponent::OnEnterGlide()
-{
-}
-
-void UExplorerCharacterMovementComponent::OnExitGlide()
-{
-}
-
-void UExplorerCharacterMovementComponent::PhysGlide(float deltaTime, int32 Iterations)
-{
-	if (deltaTime < MIN_TICK_TIME)
-	{
-		return;
-	}
+	AirControl = DefaultAirControl;
 }
 
 #pragma endregion

@@ -12,7 +12,6 @@ UENUM(BlueprintType)
 enum EExplorerCustomMovementMode
 {
 	CMOVE_None			UMETA(Hidden),
-	CMOVE_Glide			UMETA(DisplayName = "Glide"),
 	CMOVE_Hook			UMETA(DisplayName = "Hook"),
 	CMOVE_MAX			UMETA(Hidden),
 };
@@ -128,15 +127,14 @@ public:
 
 	// Sprint Parameters
 private:
-	UPROPERTY(EditDefaultsOnly, Category="Glide") float MinGlideZVelocity = -1.f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=-0.1f)) float MinGlideZVelocity = -1.f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMin=0.1f)) float MaxGlideZVelocity = 1.f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=1f, ClampMin=0f)) float GlideLerpFactor = 0.05f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=1f, ClampMin=0f)) float GlideAirControl = 1.f;
+	float DefaultAirControl;
 public:
 	UFUNCTION(BlueprintCallable, Category="Glide") void GlidePressed();
 	UFUNCTION(BlueprintCallable, Category="Glide") void GlideReleased();
-private:
-    void OnEnterGlide();
-	void OnExitGlide();
-	
-	void PhysGlide(float deltaTime, int32 Iterations);
 
 #pragma endregion
 
