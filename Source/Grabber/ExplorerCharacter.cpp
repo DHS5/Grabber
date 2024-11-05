@@ -5,6 +5,7 @@
 
 #include "ExplorerCharacterMovementComponent.h"
 #include "GameFramework/DefaultPawn.h"
+#include "GameFramework/SpringArmComponent.h"
 
 
 // Sets default values
@@ -15,22 +16,30 @@ AExplorerCharacter::AExplorerCharacter(const FObjectInitializer& ObjectInitializ
 	ExplorerMovementComponent = Cast<UExplorerCharacterMovementComponent>(GetCharacterMovement());
 }
 
-// Called when the game starts or when spawned
-void AExplorerCharacter::BeginPlay()
+bool AExplorerCharacter::TryHook() const
 {
-	Super::BeginPlay();
+	FVector CameraLocation;
+	FRotator CameraRotation;
+	GetActorEyesViewPoint(CameraLocation, CameraRotation);
+	FVector End = CameraLocation + CameraRotation.Vector() * ExplorerMovementComponent->GetHookMaxDistance();
+
+	FHitResult Hit = FHitResult();
+	FCollisionQueryParams TraceParams(FName(TEXT("Trace")));
+	TraceParams.AddIgnoredActor(this);
+	TraceParams.bTraceComplex = true;
+	TraceParams.bReturnPhysicalMaterial = false;
+
+	if (GetWorld()->LineTraceSingleByChannel(
+		Hit,
+		CameraLocation,
+		End,
+		HookChannel,
+		TraceParams))
+	{
+		return ExplorerMovementComponent->Hook(Hit.Location);
+	}
 	
-}
-
-// Called every frame
-void AExplorerCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
-
-// Called to bind functionality to input
-void AExplorerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	return false;
+	
 }
 

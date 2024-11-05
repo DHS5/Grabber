@@ -190,12 +190,43 @@ float UExplorerCharacterMovementComponent::GetMaxSpeed() const
 	
 	if (MovementMode != MOVE_Custom) return Super::GetMaxSpeed();
 
-	UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
-	return 0;
+	switch (CustomMovementMode)
+	{
+	case CMOVE_Hook:
+		return MaxHookSpeed;
+	default:
+		UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
+		return 0;
+	}
+}
+
+float UExplorerCharacterMovementComponent::GetMaxBrakingDeceleration() const
+{
+	if (IsMovementMode(MOVE_Custom))
+	{
+		switch (CustomMovementMode)
+		{
+		case CMOVE_Hook:
+			return 0.f;
+		default: ;
+		}
+	}
+	
+	return Super::GetMaxBrakingDeceleration();
+}
+
+float UExplorerCharacterMovementComponent::GetMinAnalogSpeed() const
+{
+	if (IsCustomMovementMode(CMOVE_Hook))
+	{
+		return MaxHookSpeed;
+	}
+	
+	return Super::GetMinAnalogSpeed();
 }
 
 FVector UExplorerCharacterMovementComponent::NewFallVelocity(const FVector& InitialVelocity, const FVector& Gravity,
-	float DeltaTime) const
+                                                             float DeltaTime) const
 {
 	FVector Result = Super::NewFallVelocity(InitialVelocity, Gravity, DeltaTime);
 
@@ -212,6 +243,21 @@ FVector UExplorerCharacterMovementComponent::NewFallVelocity(const FVector& Init
 	}
 
 	return Result;
+}
+
+bool UExplorerCharacterMovementComponent::IsFalling() const
+{
+	return ((MovementMode == MOVE_Falling) || IsCustomMovementMode(CMOVE_Hook)) && UpdatedComponent;
+}
+
+bool UExplorerCharacterMovementComponent::IsFlying() const
+{
+	return ((MovementMode == MOVE_Flying) || (IsCustomMovementMode(CMOVE_Hook))) && UpdatedComponent;
+}
+
+bool UExplorerCharacterMovementComponent::IsMovingOnGround() const
+{
+	return Super::IsMovingOnGround();
 }
 
 #pragma endregion 
@@ -245,6 +291,11 @@ void UExplorerCharacterMovementComponent::GlideReleased()
 	AirControl = DefaultAirControl;
 }
 
+bool UExplorerCharacterMovementComponent::IsGliding()
+{
+	return IsMovementMode(MOVE_Falling) && Safe_bWantsToGlide;
+}
+
 #pragma endregion
 
 #pragma region Hook
@@ -252,17 +303,99 @@ void UExplorerCharacterMovementComponent::GlideReleased()
 void UExplorerCharacterMovementComponent::OnEnterHook(EMovementMode PrevMode,
 	EExplorerCustomMovementMode PrevCustomMode)
 {
+	Velocity += (HookTargetLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal() * HookStartImpulse;
 }
 
 void UExplorerCharacterMovementComponent::OnExitHook()
 {
+	
 }
 
 void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterations)
-{
+{	
 	if (deltaTime < MIN_TICK_TIME)
 	{
 		return;
+	}
+	if (!CharacterOwner || (!CharacterOwner->Controller && !bRunPhysicsWithNoController && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity() && (CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)))
+	{
+		Acceleration = FVector::ZeroVector;
+		Velocity = FVector::ZeroVector;
+		return;
+	}
+	
+	bJustTeleported = false;
+	float remainingTime = deltaTime;
+	// Perform the move
+	while ( (remainingTime >= MIN_TICK_TIME) && (Iterations < MaxSimulationIterations) && CharacterOwner && (CharacterOwner->Controller || bRunPhysicsWithNoController || (CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)) )
+	{
+		Iterations++;
+		bJustTeleported = false;
+		const float timeTick = GetSimulationTimeStep(remainingTime, Iterations);
+		remainingTime -= timeTick;
+
+		// Compute direction
+		const FVector OldLocation = UpdatedComponent->GetComponentLocation();
+		const FVector Direction = (HookTargetLocation - OldLocation).GetSafeNormal();
+		// Compute acceleration
+		Acceleration = Direction * HookAcceleration;
+
+		// Apply acceleration
+		CalcVelocity(timeTick, 0.f, false, GetMaxBrakingDeceleration());
+
+		// Compute move parameters
+		const FVector Delta = timeTick * Velocity; // dx = v * dt
+		if (Delta.IsNearlyZero())
+		{
+			remainingTime = 0.f;
+		}
+		else
+		{
+			FHitResult Hit;
+			SafeMoveUpdatedComponent(Delta, UpdatedComponent->GetComponentQuat(), true, Hit);
+			if (Hit.bBlockingHit)
+			{
+				SetMovementMode(MOVE_Falling);
+				StartNewPhysics(remainingTime, Iterations);
+				return;
+			}
+		}
+		if (UpdatedComponent->GetComponentLocation() == OldLocation)
+		{
+			remainingTime = 0.f;
+			break;
+		}
+		Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / timeTick; // v = dx / dt
+	}
+}
+
+bool UExplorerCharacterMovementComponent::CanHook(const FVector& TargetLocation)
+{
+	if (!IsGliding())
+	{
+		const float Dist = FVector::Dist(TargetLocation, UpdatedComponent->GetComponentLocation());
+		return Dist < MaxHookDistance && Dist > MinHookDistance;
+	}
+	return false;
+}
+
+bool UExplorerCharacterMovementComponent::Hook(const FVector& TargetLocation)
+{
+	if (CanHook(TargetLocation))
+	{
+		DrawDebugSphere(GetWorld(), TargetLocation, 25.f, 32, FColor::Red, false, 5.f);
+		HookTargetLocation = TargetLocation;
+		SetMovementMode(MOVE_Custom, CMOVE_Hook);
+		return true;
+	}
+	return false;
+}
+
+void UExplorerCharacterMovementComponent::Unhook()
+{
+	if (IsCustomMovementMode(CMOVE_Hook))
+	{
+		SetMovementMode(MOVE_Falling);
 	}
 }
 

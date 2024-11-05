@@ -19,16 +19,11 @@ protected:
 
 public:
 	// Sets default values for this character's properties
-	AExplorerCharacter(const FObjectInitializer& ObjectInitializer);
+	explicit AExplorerCharacter(const FObjectInitializer& ObjectInitializer);
 
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
+	// Hook
+private:
+	UPROPERTY(EditDefaultsOnly, Category="Hook") TEnumAsByte<ECollisionChannel> HookChannel;
 public:
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	UFUNCTION(BlueprintCallable, Category="Hook") bool TryHook() const;
 };
