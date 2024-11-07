@@ -36,10 +36,17 @@ bool AExplorerCharacter::TryHook() const
 		HookChannel,
 		TraceParams))
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Hit %s"), *Hit.GetActor()->GetName()));
 		return ExplorerMovementComponent->Hook(Hit.Location);
 	}
-	
+
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Can't find hook anchor"));
 	return false;
 	
+}
+
+void AExplorerCharacter::ReleaseHook() const
+{
+	ExplorerMovementComponent->Unhook();
 }
 

@@ -228,31 +228,30 @@ float UExplorerCharacterMovementComponent::GetMinAnalogSpeed() const
 FVector UExplorerCharacterMovementComponent::NewFallVelocity(const FVector& InitialVelocity, const FVector& Gravity,
                                                              float DeltaTime) const
 {
-	FVector Result = Super::NewFallVelocity(InitialVelocity, Gravity, DeltaTime);
-
-	if (Safe_bWantsToGlide)
+	if (DeltaTime > 0 && Safe_bWantsToGlide)
 	{
-		if (Result.Z < MinGlideZVelocity)
+		FVector Result = InitialVelocity;
+		if (InitialVelocity.Z < 0)
 		{
-			Result.Z = FMath::Lerp(Result.Z, MinGlideZVelocity, GlideLerpFactor);
+			Result.Z = FMath::Lerp(Result.Z, GlideZVelocity,  (InitialVelocity.Z < GlideZVelocity ? GlideFallDamping : GlideZenithDamping) * DeltaTime);
 		}
-		else if (Result.Z > MaxGlideZVelocity)
+		else
 		{
-			Result.Z = FMath::Lerp(Result.Z, MaxGlideZVelocity, GlideLerpFactor);
+			Result.Z = FMath::Lerp(Result.Z, GlideZVelocity, GlideUpBraking * DeltaTime);
 		}
+		return Result;
 	}
-
-	return Result;
+	return Super::NewFallVelocity(InitialVelocity, Gravity, DeltaTime);
 }
 
 bool UExplorerCharacterMovementComponent::IsFalling() const
 {
-	return ((MovementMode == MOVE_Falling) || IsCustomMovementMode(CMOVE_Hook)) && UpdatedComponent;
+	return Super::IsFalling();
 }
 
 bool UExplorerCharacterMovementComponent::IsFlying() const
 {
-	return ((MovementMode == MOVE_Flying) || (IsCustomMovementMode(CMOVE_Hook))) && UpdatedComponent;
+	return Super::IsFlying();
 }
 
 bool UExplorerCharacterMovementComponent::IsMovingOnGround() const
@@ -291,9 +290,9 @@ void UExplorerCharacterMovementComponent::GlideReleased()
 	AirControl = DefaultAirControl;
 }
 
-bool UExplorerCharacterMovementComponent::IsGliding()
+bool UExplorerCharacterMovementComponent::IsGliding() const
 {
-	return IsMovementMode(MOVE_Falling) && Safe_bWantsToGlide;
+	return IsMovementMode(MOVE_Falling) && Safe_bWantsToGlide && UpdatedComponent;
 }
 
 #pragma endregion
@@ -303,12 +302,15 @@ bool UExplorerCharacterMovementComponent::IsGliding()
 void UExplorerCharacterMovementComponent::OnEnterHook(EMovementMode PrevMode,
 	EExplorerCustomMovementMode PrevCustomMode)
 {
+	DefaultCapsuleHalfHeight = ExplorerCharacterOwner->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+	ExplorerCharacterOwner->GetCapsuleComponent()->SetCapsuleHalfHeight(HookCapsuleHalfHeight);
+	
 	Velocity += (HookTargetLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal() * HookStartImpulse;
 }
 
 void UExplorerCharacterMovementComponent::OnExitHook()
 {
-	
+	ExplorerCharacterOwner->GetCapsuleComponent()->SetCapsuleHalfHeight(DefaultCapsuleHalfHeight);
 }
 
 void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterations)
@@ -336,15 +338,23 @@ void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterat
 
 		// Compute direction
 		const FVector OldLocation = UpdatedComponent->GetComponentLocation();
-		const FVector Direction = (HookTargetLocation - OldLocation).GetSafeNormal();
+		const FVector Distance = HookTargetLocation - OldLocation;
+		const FVector Direction = Distance.GetSafeNormal();
 		// Compute acceleration
 		Acceleration = Direction * HookAcceleration;
 
 		// Apply acceleration
 		CalcVelocity(timeTick, 0.f, false, GetMaxBrakingDeceleration());
 
+		// Rectify velocity direction
+		if (Distance.Size() < HookDirectionControlMaxDistance)
+		{
+			const float VelSize = Velocity.Size();
+			Velocity = FMath::Lerp(Velocity.GetSafeNormal(), Direction, HookDirectionControlPower) * VelSize;
+		}
+
 		// Compute move parameters
-		const FVector Delta = timeTick * Velocity; // dx = v * dt
+		FVector Delta = timeTick * Velocity; // dx = v * dt
 		if (Delta.IsNearlyZero())
 		{
 			remainingTime = 0.f;
@@ -353,11 +363,22 @@ void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterat
 		{
 			FHitResult Hit;
 			SafeMoveUpdatedComponent(Delta, UpdatedComponent->GetComponentQuat(), true, Hit);
-			if (Hit.bBlockingHit)
+			if (Hit.bStartPenetrating || Hit.bBlockingHit)
 			{
-				SetMovementMode(MOVE_Falling);
-				StartNewPhysics(remainingTime, Iterations);
-				return;
+				if ((Hit.Normal | Direction) > 0)
+				{
+					const float VelSize = Velocity.Size();
+					UE::Math::TVector<double> VelNormal = Velocity.GetSafeNormal();
+					Velocity = FVector::SlerpNormals(VelNormal, Hit.Normal, 0.5f) * VelSize;
+					Delta = timeTick * Velocity;
+					SafeMoveUpdatedComponent(Delta, UpdatedComponent->GetComponentQuat(), true, Hit);
+				}
+				else
+				{
+					SetMovementMode(MOVE_Falling);
+					StartNewPhysics(remainingTime, Iterations);
+					return;
+				}
 			}
 		}
 		if (UpdatedComponent->GetComponentLocation() == OldLocation)
@@ -371,11 +392,12 @@ void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterat
 
 bool UExplorerCharacterMovementComponent::CanHook(const FVector& TargetLocation)
 {
-	if (!IsGliding())
+	if (!IsGliding() && !IsHooking())
 	{
 		const float Dist = FVector::Dist(TargetLocation, UpdatedComponent->GetComponentLocation());
 		return Dist < MaxHookDistance && Dist > MinHookDistance;
 	}
+	
 	return false;
 }
 
@@ -383,7 +405,7 @@ bool UExplorerCharacterMovementComponent::Hook(const FVector& TargetLocation)
 {
 	if (CanHook(TargetLocation))
 	{
-		DrawDebugSphere(GetWorld(), TargetLocation, 25.f, 32, FColor::Red, false, 5.f);
+		DrawDebugSphere(GetWorld(), TargetLocation, 5.f, 32, FColor::Red, false, 5.f);
 		HookTargetLocation = TargetLocation;
 		SetMovementMode(MOVE_Custom, CMOVE_Hook);
 		return true;
@@ -393,10 +415,15 @@ bool UExplorerCharacterMovementComponent::Hook(const FVector& TargetLocation)
 
 void UExplorerCharacterMovementComponent::Unhook()
 {
-	if (IsCustomMovementMode(CMOVE_Hook))
+	if (IsHooking())
 	{
 		SetMovementMode(MOVE_Falling);
 	}
+}
+
+bool UExplorerCharacterMovementComponent::IsHooking() const
+{
+	return (IsCustomMovementMode(CMOVE_Hook)) && UpdatedComponent;
 }
 
 #pragma endregion

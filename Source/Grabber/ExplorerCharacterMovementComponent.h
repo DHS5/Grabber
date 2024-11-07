@@ -131,15 +131,16 @@ public:
 #pragma region Glide
 
 private:
-	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=-0.1f)) float MinGlideZVelocity = -1.f;
-	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMin=0.1f)) float MaxGlideZVelocity = 1.f;
-	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=1f, ClampMin=0f)) float GlideLerpFactor = 0.05f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=-0.f)) float GlideZVelocity = -1.f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMin=0.f)) float GlideFallDamping = 1.f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMin=0.f)) float GlideZenithDamping = 1.f;
+	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMin=0.f)) float GlideUpBraking = 1.f;
 	UPROPERTY(EditDefaultsOnly, Category="Glide", meta=(ClampMax=1f, ClampMin=0f)) float GlideAirControl = 1.f;
 	float DefaultAirControl;
 public:
 	UFUNCTION(BlueprintCallable, Category="Glide") void GlidePressed();
 	UFUNCTION(BlueprintCallable, Category="Glide") void GlideReleased();
-	UFUNCTION(BlueprintCallable, Category="Glide") bool IsGliding();
+	UFUNCTION(BlueprintCallable, Category="Glide") virtual  bool IsGliding() const;
 
 #pragma endregion
 
@@ -151,6 +152,11 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookStartImpulse = 250.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook", meta=(ClampMin=100.f)) float MinHookDistance = 1000.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook", meta=(ClampMin=1000.f)) float MaxHookDistance = 20000.f;
+	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookCapsuleHalfHeight = 30.f;
+	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookDirectionControlMaxDistance = 1000.f;
+	UPROPERTY(EditDefaultsOnly, Category="Hook", meta=(ClampMin=0.f, ClampMax=1.f)) float HookDirectionControlPower = 0.05f;
+private:
+	float DefaultCapsuleHalfHeight;
 	FVector HookTargetLocation;
 private:
 	virtual void OnEnterHook(EMovementMode PrevMode, EExplorerCustomMovementMode PrevCustomMode);
@@ -161,6 +167,7 @@ protected:
 public:
 	bool Hook(const FVector& TargetLocation);
 	void Unhook();
+	UFUNCTION(BlueprintCallable, Category="Hook") virtual bool IsHooking() const;
 	FORCEINLINE float GetHookMaxDistance() const { return MaxHookDistance; }
 
 #pragma endregion 

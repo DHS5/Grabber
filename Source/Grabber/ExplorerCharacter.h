@@ -26,4 +26,5 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook") TEnumAsByte<ECollisionChannel> HookChannel;
 public:
 	UFUNCTION(BlueprintCallable, Category="Hook") bool TryHook() const;
+	UFUNCTION(BlueprintCallable, Category="Hook") void ReleaseHook() const;
 };
