@@ -14,6 +14,8 @@ UExplorerCharacterMovementComponent::FSavedMove_Explorer::FSavedMove_Explorer()
 {
 	Saved_bWantsToSprint = 0;
 	Saved_bWantsToGlide = 0;
+	Saved_bIsHooking = 0;
+	Saved_HookTargetLocation = FVector::Zero();
 }
 
 bool UExplorerCharacterMovementComponent::FSavedMove_Explorer::CanCombineWith(const FSavedMovePtr& NewMove,
@@ -29,6 +31,14 @@ bool UExplorerCharacterMovementComponent::FSavedMove_Explorer::CanCombineWith(co
 	{
 		return false;
 	}
+	if (Saved_bIsHooking != NewExplorerMove->Saved_bIsHooking)
+	{
+		return false;
+	}
+	if (Saved_HookTargetLocation != NewExplorerMove->Saved_HookTargetLocation)
+	{
+		return false;
+	}
 	
 	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);
 }
@@ -39,6 +49,8 @@ void UExplorerCharacterMovementComponent::FSavedMove_Explorer::Clear()
 
 	Saved_bWantsToSprint = 0;
 	Saved_bWantsToGlide = 0;
+	Saved_bIsHooking = 0;
+	Saved_HookTargetLocation = FVector::Zero();
 }
 
 uint8 UExplorerCharacterMovementComponent::FSavedMove_Explorer::GetCompressedFlags() const
@@ -47,6 +59,7 @@ uint8 UExplorerCharacterMovementComponent::FSavedMove_Explorer::GetCompressedFla
 
 	if (Saved_bWantsToSprint) Result |= FLAG_WantsToSprint;
 	if (Saved_bWantsToGlide) Result |= FLAG_WantsToGlide;
+	if (Saved_bIsHooking) Result |= FLAG_IsHooking;
 
 	return Result;
 }
@@ -60,6 +73,9 @@ void UExplorerCharacterMovementComponent::FSavedMove_Explorer::SetMoveFor(AChara
 
 	Saved_bWantsToSprint = CharacterMovement->Safe_bWantsToSprint;
 	Saved_bWantsToGlide = CharacterMovement->Safe_bWantsToGlide;
+	Saved_bIsHooking = CharacterMovement->Safe_bIsHooking;
+
+	Saved_HookTargetLocation = CharacterMovement->Safe_HookTargetLocation;
 }
 
 void UExplorerCharacterMovementComponent::FSavedMove_Explorer::PrepMoveFor(ACharacter* C)
@@ -70,6 +86,9 @@ void UExplorerCharacterMovementComponent::FSavedMove_Explorer::PrepMoveFor(AChar
 
 	CharacterMovement->Safe_bWantsToSprint = Saved_bWantsToSprint == 1;
 	CharacterMovement->Safe_bWantsToGlide = Saved_bWantsToGlide == 1;
+	CharacterMovement->Safe_bIsHooking = Saved_bIsHooking == 1;
+
+	CharacterMovement->Safe_HookTargetLocation = Saved_HookTargetLocation;
 }
 
 void UExplorerCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
@@ -78,6 +97,7 @@ void UExplorerCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 
 	Safe_bWantsToSprint = (Flags & FSavedMove_Explorer::FLAG_WantsToSprint) != 0;
 	Safe_bWantsToGlide = (Flags & FSavedMove_Explorer::FLAG_WantsToGlide) != 0;
+	Safe_bIsHooking = (Flags & FSavedMove_Explorer::FLAG_IsHooking) != 0;
 }
 
 #pragma endregion
@@ -117,6 +137,7 @@ UExplorerCharacterMovementComponent::UExplorerCharacterMovementComponent()
 {
 	Safe_bWantsToSprint = false;
 	Safe_bWantsToGlide = false;
+	Safe_bIsHooking = false;
 }
 
 void UExplorerCharacterMovementComponent::InitializeComponent()
@@ -131,7 +152,16 @@ void UExplorerCharacterMovementComponent::InitializeComponent()
 #pragma region Movement Important Methods
 
 void UExplorerCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaSeconds)
-{	
+{
+	if (!IsHooking() && Safe_bIsHooking)
+	{
+		SetMovementMode(MOVE_Custom, CMOVE_Hook);
+	}
+	else if (IsHooking() && !Safe_bIsHooking)
+	{
+		SetMovementMode(MOVE_Falling);
+	}
+	
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
 
@@ -305,11 +335,12 @@ void UExplorerCharacterMovementComponent::OnEnterHook(EMovementMode PrevMode,
 	DefaultCapsuleHalfHeight = ExplorerCharacterOwner->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
 	ExplorerCharacterOwner->GetCapsuleComponent()->SetCapsuleHalfHeight(HookCapsuleHalfHeight);
 	
-	Velocity += (HookTargetLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal() * HookStartImpulse;
+	Velocity += (Safe_HookTargetLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal() * HookStartImpulse;
 }
 
 void UExplorerCharacterMovementComponent::OnExitHook()
 {
+	Safe_bIsHooking = false;
 	ExplorerCharacterOwner->GetCapsuleComponent()->SetCapsuleHalfHeight(DefaultCapsuleHalfHeight);
 }
 
@@ -338,7 +369,7 @@ void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterat
 
 		// Compute direction
 		const FVector OldLocation = UpdatedComponent->GetComponentLocation();
-		const FVector Distance = HookTargetLocation - OldLocation;
+		const FVector Distance = Safe_HookTargetLocation - OldLocation;
 		const FVector Direction = Distance.GetSafeNormal();
 		// Compute acceleration
 		Acceleration = Direction * HookAcceleration;
@@ -406,8 +437,8 @@ bool UExplorerCharacterMovementComponent::Hook(const FVector& TargetLocation)
 	if (CanHook(TargetLocation))
 	{
 		DrawDebugSphere(GetWorld(), TargetLocation, 5.f, 32, FColor::Red, false, 5.f);
-		HookTargetLocation = TargetLocation;
-		SetMovementMode(MOVE_Custom, CMOVE_Hook);
+		Safe_HookTargetLocation = TargetLocation;
+		Safe_bIsHooking = true;
 		return true;
 	}
 	return false;
@@ -417,7 +448,7 @@ void UExplorerCharacterMovementComponent::Unhook()
 {
 	if (IsHooking())
 	{
-		SetMovementMode(MOVE_Falling);
+		Safe_bIsHooking = false;
 	}
 }
 

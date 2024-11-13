@@ -33,7 +33,7 @@ class GRABBER_API UExplorerCharacterMovementComponent : public UCharacterMovemen
 		{
 			FLAG_WantsToSprint	= 0x10,
 			FLAG_WantsToGlide	= 0x20,
-			FLAG_Custom_2		= 0x40,
+			FLAG_IsHooking		= 0x40,
 			FLAG_Custom_3		= 0x80,
 		};
 
@@ -45,6 +45,8 @@ class GRABBER_API UExplorerCharacterMovementComponent : public UCharacterMovemen
 		// Saved variables
 		uint8 Saved_bWantsToSprint;
 		uint8 Saved_bWantsToGlide;
+		uint8 Saved_bIsHooking;
+		FVector Saved_HookTargetLocation;
 
 		#pragma region Base Methods
 
@@ -87,7 +89,8 @@ protected:
 private:
 	bool Safe_bWantsToSprint;
 	bool Safe_bWantsToGlide;
-
+	bool Safe_bIsHooking;
+	FVector Safe_HookTargetLocation;
 	
 	// Constructor & Initialization
 public:
@@ -157,7 +160,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook", meta=(ClampMin=0.f, ClampMax=1.f)) float HookDirectionControlPower = 0.05f;
 private:
 	float DefaultCapsuleHalfHeight;
-	FVector HookTargetLocation;
 private:
 	virtual void OnEnterHook(EMovementMode PrevMode, EExplorerCustomMovementMode PrevCustomMode);
 	virtual void OnExitHook();
