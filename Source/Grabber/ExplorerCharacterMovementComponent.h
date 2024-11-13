@@ -119,6 +119,16 @@ public:
 	virtual bool IsFlying() const override;
 	virtual bool IsMovingOnGround() const override;
 
+#pragma region Coyote Jump
+
+private:
+	UPROPERTY(EditDefaultsOnly, Category="Jump", meta=(ClampMin=0.f)) float CoyoteJumpDuration = 0.25f;
+	float LastFallTime;
+public:
+	virtual bool CanCoyoteJump() const;
+
+#pragma endregion 
+
 #pragma region Sprint
 	
 	// Sprint Parameters

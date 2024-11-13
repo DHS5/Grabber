@@ -16,6 +16,26 @@ AExplorerCharacter::AExplorerCharacter(const FObjectInitializer& ObjectInitializ
 	ExplorerMovementComponent = Cast<UExplorerCharacterMovementComponent>(GetCharacterMovement());
 }
 
+bool AExplorerCharacter::CanJumpInternal_Implementation() const
+{
+	return !bIsCrouched && (JumpIsAllowedInternal() || CanCoyoteJump());
+}
+
+bool AExplorerCharacter::CanCoyoteJump() const
+{
+	if (ExplorerMovementComponent->CanAttemptJump())
+	{
+		if (!bWasJumping
+			&& JumpCurrentCountPreJump == 0
+			&& ExplorerMovementComponent->CanCoyoteJump())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool AExplorerCharacter::TryHook() const
 {
 	FVector CameraLocation;

@@ -21,6 +21,11 @@ public:
 	// Sets default values for this character's properties
 	explicit AExplorerCharacter(const FObjectInitializer& ObjectInitializer);
 
+	// Jump
+protected:
+	virtual bool CanJumpInternal_Implementation() const override;
+	virtual bool CanCoyoteJump() const;
+	
 	// Hook
 private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook") TEnumAsByte<ECollisionChannel> HookChannel;

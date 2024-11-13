@@ -182,6 +182,10 @@ void UExplorerCharacterMovementComponent::OnMovementModeChanged(EMovementMode Pr
 	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
 
 	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMOVE_Hook) OnExitHook();
+	if (PreviousMovementMode == MOVE_Walking && IsMovementMode(MOVE_Falling))
+	{
+		LastFallTime = GetWorld()->GetTime().GetWorldTimeSeconds();
+	}
 
 	if (IsCustomMovementMode(CMOVE_Hook)) OnEnterHook(PreviousMovementMode, static_cast<EExplorerCustomMovementMode>(PreviousCustomMode));
 }
@@ -287,6 +291,15 @@ bool UExplorerCharacterMovementComponent::IsFlying() const
 bool UExplorerCharacterMovementComponent::IsMovingOnGround() const
 {
 	return Super::IsMovingOnGround();
+}
+
+#pragma endregion
+
+#pragma region Coyote Jump
+
+bool UExplorerCharacterMovementComponent::CanCoyoteJump() const
+{
+	return IsFalling() && GetWorld()->GetTime().GetWorldTimeSeconds() < (LastFallTime + CoyoteJumpDuration);
 }
 
 #pragma endregion 
