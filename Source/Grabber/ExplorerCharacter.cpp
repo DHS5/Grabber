@@ -16,6 +16,26 @@ AExplorerCharacter::AExplorerCharacter(const FObjectInitializer& ObjectInitializ
 	ExplorerMovementComponent = Cast<UExplorerCharacterMovementComponent>(GetCharacterMovement());
 }
 
+void AExplorerCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (HookedActor != nullptr)
+	{
+		FVector HookedActorLocation = HookedActor->GetActorLocation();
+		FVector Direction = GetActorLocation() - HookedActorLocation;
+		float Distance = Direction.Size();
+		if (Distance < ObjectHookMinDist)
+		{
+			ReleaseHook();
+		}
+		else
+		{
+			HookedActor->SetActorLocation(HookedActorLocation + Direction.GetSafeNormal() * ObjectHookSpeed * DeltaSeconds);
+		}
+	}
+}
+
 bool AExplorerCharacter::CanJumpInternal_Implementation() const
 {
 	return !bIsCrouched && (JumpIsAllowedInternal() || CanCoyoteJump());
@@ -36,7 +56,7 @@ bool AExplorerCharacter::CanCoyoteJump() const
 	return false;
 }
 
-bool AExplorerCharacter::TryHook() const
+bool AExplorerCharacter::TryHook()
 {
 	FVector CameraLocation;
 	FRotator CameraRotation;
@@ -53,11 +73,24 @@ bool AExplorerCharacter::TryHook() const
 		Hit,
 		CameraLocation,
 		End,
-		HookChannel,
+		ECC_WorldStatic,
 		TraceParams))
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Hit %s"), *Hit.GetActor()->GetName()));
-		return ExplorerMovementComponent->Hook(Hit.Location);
+		switch (Hit.GetActor()->GetRootComponent()->Mobility)
+		{
+			case EComponentMobility::Movable:
+				{
+					HookedActor = Hit.GetActor();
+					GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Dynamic Hit %s"), *HookedActor->GetName()));
+					return HookedActor != nullptr;
+				}
+			case EComponentMobility::Static:
+				{
+					GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Static Hit %s"), *Hit.GetActor()->GetName()));
+					return ExplorerMovementComponent->Hook(Hit.Location);
+				}
+		}
+		return false;
 	}
 
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Can't find hook anchor"));
@@ -65,8 +98,9 @@ bool AExplorerCharacter::TryHook() const
 	
 }
 
-void AExplorerCharacter::ReleaseHook() const
+void AExplorerCharacter::ReleaseHook()
 {
 	ExplorerMovementComponent->Unhook();
+	HookedActor = nullptr;
 }
 

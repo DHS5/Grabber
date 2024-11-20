@@ -21,15 +21,22 @@ public:
 	// Sets default values for this character's properties
 	explicit AExplorerCharacter(const FObjectInitializer& ObjectInitializer);
 
+private:
+	virtual void Tick(float DeltaSeconds) override;
+
 	// Jump
 protected:
 	virtual bool CanJumpInternal_Implementation() const override;
 	virtual bool CanCoyoteJump() const;
 	
 	// Hook
+protected:
+	UPROPERTY(BlueprintReadOnly, Category = "Hook") AActor* HookedActor;
 private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook") TEnumAsByte<ECollisionChannel> HookChannel;
+	UPROPERTY(EditDefaultsOnly, Category="Hook") float ObjectHookSpeed = 100.f;
+	UPROPERTY(EditDefaultsOnly, Category="Hook") float ObjectHookMinDist = 100.f;
 public:
-	UFUNCTION(BlueprintCallable, Category="Hook") bool TryHook() const;
-	UFUNCTION(BlueprintCallable, Category="Hook") void ReleaseHook() const;
+	UFUNCTION(BlueprintCallable, Category="Hook") bool TryHook();
+	UFUNCTION(BlueprintCallable, Category="Hook") void ReleaseHook();
 };
