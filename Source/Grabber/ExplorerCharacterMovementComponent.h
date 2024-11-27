@@ -47,6 +47,7 @@ class GRABBER_API UExplorerCharacterMovementComponent : public UCharacterMovemen
 		uint8 Saved_bWantsToGlide;
 		uint8 Saved_bIsHooking;
 		FVector Saved_HookTargetLocation;
+		float Saved_LastFallTime;
 
 		#pragma region Base Methods
 
@@ -91,6 +92,7 @@ private:
 	bool Safe_bWantsToGlide;
 	bool Safe_bIsHooking;
 	FVector Safe_HookTargetLocation;
+	float Safe_LastFallTime;
 	
 	// Constructor & Initialization
 public:
@@ -123,7 +125,6 @@ public:
 
 private:
 	UPROPERTY(EditDefaultsOnly, Category="Jump", meta=(ClampMin=0.f)) float CoyoteJumpDuration = 0.25f;
-	float LastFallTime;
 public:
 	virtual bool CanCoyoteJump() const;
 

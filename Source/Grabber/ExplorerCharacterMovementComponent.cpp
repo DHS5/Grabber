@@ -16,6 +16,7 @@ UExplorerCharacterMovementComponent::FSavedMove_Explorer::FSavedMove_Explorer()
 	Saved_bWantsToGlide = 0;
 	Saved_bIsHooking = 0;
 	Saved_HookTargetLocation = FVector::Zero();
+	Saved_LastFallTime = 0.f;
 }
 
 bool UExplorerCharacterMovementComponent::FSavedMove_Explorer::CanCombineWith(const FSavedMovePtr& NewMove,
@@ -39,6 +40,10 @@ bool UExplorerCharacterMovementComponent::FSavedMove_Explorer::CanCombineWith(co
 	{
 		return false;
 	}
+	if (Saved_LastFallTime != NewExplorerMove->Saved_LastFallTime)
+	{
+		return false;
+	}
 	
 	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);
 }
@@ -51,6 +56,7 @@ void UExplorerCharacterMovementComponent::FSavedMove_Explorer::Clear()
 	Saved_bWantsToGlide = 0;
 	Saved_bIsHooking = 0;
 	Saved_HookTargetLocation = FVector::Zero();
+	Saved_LastFallTime = 0.f;
 }
 
 uint8 UExplorerCharacterMovementComponent::FSavedMove_Explorer::GetCompressedFlags() const
@@ -76,6 +82,7 @@ void UExplorerCharacterMovementComponent::FSavedMove_Explorer::SetMoveFor(AChara
 	Saved_bIsHooking = CharacterMovement->Safe_bIsHooking;
 
 	Saved_HookTargetLocation = CharacterMovement->Safe_HookTargetLocation;
+	Saved_LastFallTime = CharacterMovement->Safe_LastFallTime;
 }
 
 void UExplorerCharacterMovementComponent::FSavedMove_Explorer::PrepMoveFor(ACharacter* C)
@@ -89,6 +96,7 @@ void UExplorerCharacterMovementComponent::FSavedMove_Explorer::PrepMoveFor(AChar
 	CharacterMovement->Safe_bIsHooking = Saved_bIsHooking == 1;
 
 	CharacterMovement->Safe_HookTargetLocation = Saved_HookTargetLocation;
+	CharacterMovement->Safe_LastFallTime = Saved_LastFallTime;
 }
 
 void UExplorerCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
@@ -138,6 +146,8 @@ UExplorerCharacterMovementComponent::UExplorerCharacterMovementComponent()
 	Safe_bWantsToSprint = false;
 	Safe_bWantsToGlide = false;
 	Safe_bIsHooking = false;
+	Safe_HookTargetLocation = FVector::ZeroVector;
+	Safe_LastFallTime = 0.f;
 }
 
 void UExplorerCharacterMovementComponent::InitializeComponent()
@@ -184,7 +194,7 @@ void UExplorerCharacterMovementComponent::OnMovementModeChanged(EMovementMode Pr
 	if (PreviousMovementMode == MOVE_Custom && PreviousCustomMode == CMOVE_Hook) OnExitHook();
 	if (PreviousMovementMode == MOVE_Walking && IsMovementMode(MOVE_Falling))
 	{
-		LastFallTime = GetWorld()->GetTime().GetWorldTimeSeconds();
+		Safe_LastFallTime = GetWorld()->GetTime().GetWorldTimeSeconds();
 	}
 
 	if (IsCustomMovementMode(CMOVE_Hook)) OnEnterHook(PreviousMovementMode, static_cast<EExplorerCustomMovementMode>(PreviousCustomMode));
@@ -299,7 +309,7 @@ bool UExplorerCharacterMovementComponent::IsMovingOnGround() const
 
 bool UExplorerCharacterMovementComponent::CanCoyoteJump() const
 {
-	return IsFalling() && GetWorld()->GetTime().GetWorldTimeSeconds() < (LastFallTime + CoyoteJumpDuration);
+	return IsFalling() && GetWorld()->GetTime().GetWorldTimeSeconds() < (Safe_LastFallTime + CoyoteJumpDuration);
 }
 
 #pragma endregion 
