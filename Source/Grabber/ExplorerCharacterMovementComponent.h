@@ -163,6 +163,7 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float MaxHookSpeed = 1250.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookAcceleration = 1.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookStartImpulse = 250.f;
+	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookEndImpulse = 250.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook", meta=(ClampMin=100.f)) float MinHookDistance = 1000.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook", meta=(ClampMin=1000.f)) float MaxHookDistance = 20000.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float HookCapsuleHalfHeight = 30.f;

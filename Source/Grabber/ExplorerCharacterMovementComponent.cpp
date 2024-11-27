@@ -355,6 +355,8 @@ void UExplorerCharacterMovementComponent::OnExitHook()
 {
 	Safe_bIsHooking = false;
 	ExplorerCharacterOwner->GetCapsuleComponent()->SetCapsuleHalfHeight(DefaultCapsuleHalfHeight);
+
+	Velocity = FVector(0, 0, FMath::Min(HookEndImpulse, Velocity.Size() / 2.f));
 }
 
 void UExplorerCharacterMovementComponent::PhysHook(float deltaTime, int32 Iterations)
