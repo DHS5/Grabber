@@ -178,8 +178,9 @@ private:
 	void PhysHook(float deltaTime, int32 Iterations);
 protected:
 	virtual bool CanHook(const FVector& TargetLocation);
+	UFUNCTION(Server, Reliable) void Server_Hook(const FVector& TargetLocation);
 public:
-	bool Hook(const FVector& TargetLocation);
+	void TryHook(const FVector& TargetLocation);
 	void Unhook();
 	UFUNCTION(BlueprintCallable, Category="Hook") virtual bool IsHooking() const;
 	FORCEINLINE float GetHookMaxDistance() const { return MaxHookDistance; }

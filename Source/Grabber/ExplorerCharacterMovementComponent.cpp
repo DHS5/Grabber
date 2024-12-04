@@ -457,16 +457,27 @@ bool UExplorerCharacterMovementComponent::CanHook(const FVector& TargetLocation)
 	return false;
 }
 
-bool UExplorerCharacterMovementComponent::Hook(const FVector& TargetLocation)
+void UExplorerCharacterMovementComponent::Server_Hook_Implementation(const FVector& TargetLocation)
+{
+	if (CanHook(TargetLocation))
+	{
+		Safe_HookTargetLocation = TargetLocation;
+		Safe_bIsHooking = true;
+	}
+}
+
+void UExplorerCharacterMovementComponent::TryHook(const FVector& TargetLocation)
 {
 	if (CanHook(TargetLocation))
 	{
 		DrawDebugSphere(GetWorld(), TargetLocation, 5.f, 32, FColor::Red, false, 5.f);
 		Safe_HookTargetLocation = TargetLocation;
 		Safe_bIsHooking = true;
-		return true;
+		if (!CharacterOwner->HasAuthority())
+		{
+			Server_Hook(TargetLocation);
+		}
 	}
-	return false;
 }
 
 void UExplorerCharacterMovementComponent::Unhook()

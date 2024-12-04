@@ -20,6 +20,7 @@ protected:
 public:
 	// Sets default values for this character's properties
 	explicit AExplorerCharacter(const FObjectInitializer& ObjectInitializer);
+	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
 	virtual void Tick(float DeltaSeconds) override;
@@ -30,13 +31,19 @@ protected:
 	virtual bool CanCoyoteJump() const;
 	
 	// Hook
+private:
+	UFUNCTION(Server, Reliable) void Server_HookActor(AActor* Actor);
+	UFUNCTION(Server, Reliable) void Server_UnhookActor();
+	void Client_HookActor(AActor* Actor);
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Hook") AActor* HookedActor;
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Hook") bool bIsHookingObject;
 private:
 	UPROPERTY(EditDefaultsOnly, Category="Hook") TEnumAsByte<ECollisionChannel> HookChannel;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float ObjectHookSpeed = 100.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float ObjectHookMinDist = 100.f;
 public:
-	UFUNCTION(BlueprintCallable, Category="Hook") bool TryHook();
+	UFUNCTION(BlueprintGetter, Category="Hook") bool CanHook() const;
+	UFUNCTION(BlueprintCallable, Category="Hook") void TryHook();
 	UFUNCTION(BlueprintCallable, Category="Hook") void ReleaseHook();
 };
