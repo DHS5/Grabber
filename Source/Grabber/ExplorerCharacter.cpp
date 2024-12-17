@@ -5,6 +5,7 @@
 
 #include "ExplorerCharacterMovementComponent.h"
 #include "Hookable.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/DefaultPawn.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -44,7 +45,15 @@ void AExplorerCharacter::Tick(float DeltaSeconds)
 		}
 		else
 		{
-			HookedActor->SetActorLocation(HookedActorLocation + Direction.GetSafeNormal() * ObjectHookSpeed * DeltaSeconds);
+			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(HookedActor->GetRootComponent());
+			if (PrimitiveComponent != nullptr)
+			{
+				PrimitiveComponent->SetPhysicsLinearVelocity(Direction.GetSafeNormal() * ObjectHookSpeed, false);
+			}
+			else
+			{
+				HookedActor->GetRootComponent()->SetWorldLocation(HookedActorLocation + Direction.GetSafeNormal() * ObjectHookSpeed * DeltaSeconds, true);	
+			}
 		}
 	}
 }
@@ -101,9 +110,9 @@ void AExplorerCharacter::TryHook()
 {
 	if (!CanHook()) return;
 	
-	FVector CameraLocation;
-	FRotator CameraRotation;
-	GetActorEyesViewPoint(CameraLocation, CameraRotation);
+	FVector CameraLocation = GetFollowCamera()->GetComponentLocation();
+	FRotator CameraRotation = GetFollowCamera()->GetForwardVector().Rotation();
+	//GetActorEyesViewPoint(CameraLocation, CameraRotation);
 	FVector End = CameraLocation + CameraRotation.Vector() * ExplorerMovementComponent->GetHookMaxDistance();
 
 	FHitResult Hit = FHitResult();
