@@ -25,23 +25,39 @@ public:
 private:
 	virtual void Tick(float DeltaSeconds) override;
 
-	// Jump
+	// --- JUMP ---
 protected:
 	virtual bool CanJumpInternal_Implementation() const override;
 	virtual bool CanCoyoteJump() const;
 	
-	// Hook
+	// --- HOOK ---
+	// Parameters
 private:
-	UFUNCTION(Server, Reliable) void Server_HookActor(AActor* Actor);
-	UFUNCTION(Server, Reliable) void Server_UnhookActor();
-	void Client_HookActor(AActor* Actor);
-protected:
-	UPROPERTY(BlueprintReadOnly, Category = "Hook") AActor* HookedActor;
-	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Hook") bool bIsHookingObject;
-private:
-	UPROPERTY(EditDefaultsOnly, Category="Hook") TEnumAsByte<ECollisionChannel> HookChannel;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float ObjectHookSpeed = 100.f;
 	UPROPERTY(EditDefaultsOnly, Category="Hook") float ObjectHookMinDist = 100.f;
+
+	// Variables
+protected:
+	// Server Variables
+	UPROPERTY(BlueprintReadOnly, Category = "Hook") AActor* HookedActor;
+	// Replicated Variables
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Hook") bool bIsHookingObject;
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Hook") bool bIsHookingAnchor;
+
+	// Server-side
+private:
+	// RPCs
+	UFUNCTION(Server, Reliable) void Server_TryHook(FVector TraceStart, FVector TraceEnd);
+	UFUNCTION(Server, Reliable) void Server_ReleaseHook();
+	// Server Functions
+	UFUNCTION() void Server_HookActor(AActor* Actor);
+
+	// Client-side
+protected:
+	UFUNCTION(Client, Reliable) void Client_OnHookObject(AActor* Actor);
+	UFUNCTION(Client, Reliable) void Client_OnHookAnchor(FVector AnchorLocation);
+
+	// Blueprint Functions (Local)
 public:
 	UFUNCTION(BlueprintGetter, Category="Hook") bool CanHook() const;
 	UFUNCTION(BlueprintCallable, Category="Hook") void TryHook();

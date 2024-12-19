@@ -26,6 +26,7 @@ void AExplorerCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProper
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AExplorerCharacter, bIsHookingObject);
+	DOREPLIFETIME(AExplorerCharacter, bIsHookingAnchor);
 }
 
 void AExplorerCharacter::Tick(float DeltaSeconds)
@@ -41,7 +42,7 @@ void AExplorerCharacter::Tick(float DeltaSeconds)
 		float Distance = Direction.Size();
 		if (Distance < ObjectHookMinDist)
 		{
-			Server_UnhookActor();
+			Server_ReleaseHook();
 		}
 		else
 		{
@@ -57,6 +58,8 @@ void AExplorerCharacter::Tick(float DeltaSeconds)
 		}
 	}
 }
+
+#pragma region Coyote Jump
 
 bool AExplorerCharacter::CanJumpInternal_Implementation() const
 {
@@ -78,14 +81,29 @@ bool AExplorerCharacter::CanCoyoteJump() const
 	return false;
 }
 
-void AExplorerCharacter::Server_HookActor_Implementation(AActor* Actor)
+#pragma endregion
+
+void AExplorerCharacter::Server_HookActor(AActor* Actor)
 {
-	bIsHookingObject = true;
 	HookedActor = Actor;
 	IHookable::Execute_OnHooked(HookedActor);
+	
+	switch (IHookable::Execute_GetType(Actor))
+	{
+	case EHookableType::HOOK_Object:
+		bIsHookingObject = true;
+		Client_OnHookObject(HookedActor);
+		return;
+		
+	case EHookableType::HOOK_Anchor:
+		bIsHookingAnchor = true;
+		Client_OnHookAnchor(IHookable::Execute_GetAnchor(HookedActor)->GetComponentLocation());
+		return;
+	default: ;
+	}
 }
 
-void AExplorerCharacter::Server_UnhookActor_Implementation()
+void AExplorerCharacter::Server_ReleaseHook_Implementation()
 {
 	if (HookedActor != nullptr)
 	{
@@ -93,28 +111,11 @@ void AExplorerCharacter::Server_UnhookActor_Implementation()
 		HookedActor = nullptr;
 	}
 	bIsHookingObject = false;
+	bIsHookingAnchor = false;
 }
 
-void AExplorerCharacter::Client_HookActor(AActor* Actor)
+void AExplorerCharacter::Server_TryHook_Implementation(FVector TraceStart, FVector TraceEnd)
 {
-	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Dynamic Hit %s"), *HookedActor->GetName()));
-	Server_HookActor(Actor);
-}
-
-bool AExplorerCharacter::CanHook() const
-{
-	return !bIsHookingObject && !ExplorerMovementComponent->IsHooking();
-}
-
-void AExplorerCharacter::TryHook()
-{
-	if (!CanHook()) return;
-	
-	FVector CameraLocation = GetFollowCamera()->GetComponentLocation();
-	FRotator CameraRotation = GetFollowCamera()->GetForwardVector().Rotation();
-	//GetActorEyesViewPoint(CameraLocation, CameraRotation);
-	FVector End = CameraLocation + CameraRotation.Vector() * ExplorerMovementComponent->GetHookMaxDistance();
-
 	FHitResult Hit = FHitResult();
 	FCollisionQueryParams TraceParams(FName(TEXT("Trace")));
 	TraceParams.AddIgnoredActor(this);
@@ -123,40 +124,57 @@ void AExplorerCharacter::TryHook()
 
 	if (GetWorld()->LineTraceSingleByChannel(
 		Hit,
-		CameraLocation,
-		End,
-		ECC_WorldStatic,
-		TraceParams)
-		&& Hit.GetActor())
+		TraceStart,
+		TraceEnd,
+		ECC_Visibility,
+		TraceParams))
 	{
-		switch (Hit.GetActor()->GetRootComponent()->Mobility)
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor != nullptr
+			&& HitActor->Implements<UHookable>()
+			&& IHookable::Execute_CanBeHooked(HitActor))
 		{
-			case EComponentMobility::Movable:
-				{
-					if (Hit.GetActor()->Implements<UHookable>()
-						&& IHookable::Execute_CanBeHooked(Hit.GetActor()))
-					{
-						Client_HookActor(Hit.GetActor());
-					}
-					return;
-				}
-			case EComponentMobility::Static:
-				{
-					GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Static Hit %s"), *Hit.GetActor()->GetName()));
-					ExplorerMovementComponent->TryHook(Hit.Location);
-					return;
-				}
+			Server_HookActor(HitActor);
 		}
 	}
-	else
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Can't find hook anchor"));	
-	}
+}
+
+#pragma region Hook Client Callbacks
+
+void AExplorerCharacter::Client_OnHookObject_Implementation(AActor* Actor)
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Hook object %s"), *Actor->GetName()));
+}
+void AExplorerCharacter::Client_OnHookAnchor_Implementation(FVector AnchorLocation)
+{
+	ExplorerMovementComponent->TryHook(AnchorLocation);
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf( TEXT("Hook anchor %s"), *AnchorLocation.ToString()));
+}
+
+#pragma endregion
+
+#pragma region Hook Blueprint Functions
+
+bool AExplorerCharacter::CanHook() const
+{
+	return !bIsHookingObject && !bIsHookingAnchor;
+}
+
+void AExplorerCharacter::TryHook()
+{
+	if (!CanHook()) return;
+	
+	FVector CameraLocation = GetFollowCamera()->GetComponentLocation();
+	FRotator CameraRotation = GetFollowCamera()->GetForwardVector().Rotation();
+	FVector End = CameraLocation + CameraRotation.Vector() * ExplorerMovementComponent->GetHookMaxDistance();
+
+	Server_TryHook(CameraLocation, End);
 }
 
 void AExplorerCharacter::ReleaseHook()
 {
 	ExplorerMovementComponent->Unhook();
-	Server_UnhookActor();
+	Server_ReleaseHook();
 }
 
+#pragma endregion
