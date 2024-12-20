@@ -39,7 +39,9 @@ private:
 	// Variables
 protected:
 	// Server Variables
-	UPROPERTY(BlueprintReadOnly, Category = "Hook") AActor* HookedActor;
+	UPROPERTY() TObjectPtr<AActor> HookedActor;
+	UPROPERTY() TObjectPtr<UPrimitiveComponent> HookedPrimitiveComponent;
+	UPROPERTY() bool bHookedObjectCanBeMoved;
 	// Replicated Variables
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Hook") bool bIsHookingObject;
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Hook") bool bIsHookingAnchor;

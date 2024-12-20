@@ -33,6 +33,7 @@ class GRABBER_API IHookable
 public:
 	UFUNCTION(BlueprintImplementableEvent) EHookableType GetType();
 	UFUNCTION(BlueprintImplementableEvent) bool CanBeHooked();
+	UFUNCTION(BlueprintImplementableEvent) bool CanBeMoved();
 	UFUNCTION(BlueprintImplementableEvent) USceneComponent* GetAnchor();
 
 	UFUNCTION(BlueprintImplementableEvent) void OnHooked();

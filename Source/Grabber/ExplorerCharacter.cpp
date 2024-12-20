@@ -11,6 +11,8 @@
 #include "Net/UnrealNetwork.h"
 
 
+#pragma region Core Behaviour
+
 // Sets default values
 AExplorerCharacter::AExplorerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UExplorerCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -18,6 +20,8 @@ AExplorerCharacter::AExplorerCharacter(const FObjectInitializer& ObjectInitializ
 	// Get Explorer Character Movement Component
 	ExplorerMovementComponent = Cast<UExplorerCharacterMovementComponent>(GetCharacterMovement());
 
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	bReplicates = true;
 }
 
@@ -33,11 +37,13 @@ void AExplorerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (bIsHookingObject &&
-		HookedActor != nullptr &&
-		HookedActor->HasAuthority())
+	if (HookedActor != nullptr &&
+		HookedActor->HasAuthority() &&
+		bIsHookingObject &&
+		bHookedObjectCanBeMoved &&
+		HookedPrimitiveComponent != nullptr)
 	{
-		FVector HookedActorLocation = HookedActor->GetActorLocation();
+		FVector HookedActorLocation = HookedPrimitiveComponent->GetComponentLocation();
 		FVector Direction = GetActorLocation() - HookedActorLocation;
 		float Distance = Direction.Size();
 		if (Distance < ObjectHookMinDist)
@@ -46,18 +52,12 @@ void AExplorerCharacter::Tick(float DeltaSeconds)
 		}
 		else
 		{
-			UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(HookedActor->GetRootComponent());
-			if (PrimitiveComponent != nullptr)
-			{
-				PrimitiveComponent->SetPhysicsLinearVelocity(Direction.GetSafeNormal() * ObjectHookSpeed, false);
-			}
-			else
-			{
-				HookedActor->GetRootComponent()->SetWorldLocation(HookedActorLocation + Direction.GetSafeNormal() * ObjectHookSpeed * DeltaSeconds, true);	
-			}
+			HookedPrimitiveComponent->SetPhysicsLinearVelocity(Direction.GetSafeNormal() * ObjectHookSpeed, false);
 		}
 	}
 }
+
+#pragma endregion 
 
 #pragma region Coyote Jump
 
@@ -83,6 +83,9 @@ bool AExplorerCharacter::CanCoyoteJump() const
 
 #pragma endregion
 
+
+#pragma region Server Hook Functions
+
 void AExplorerCharacter::Server_HookActor(AActor* Actor)
 {
 	HookedActor = Actor;
@@ -91,7 +94,10 @@ void AExplorerCharacter::Server_HookActor(AActor* Actor)
 	switch (IHookable::Execute_GetType(Actor))
 	{
 	case EHookableType::HOOK_Object:
+		PrimaryActorTick.SetTickFunctionEnable(true);
 		bIsHookingObject = true;
+		bHookedObjectCanBeMoved = IHookable::Execute_CanBeMoved(HookedActor);
+		HookedPrimitiveComponent = Cast<UPrimitiveComponent>(HookedActor->GetRootComponent());
 		Client_OnHookObject(HookedActor);
 		return;
 		
@@ -112,6 +118,7 @@ void AExplorerCharacter::Server_ReleaseHook_Implementation()
 	}
 	bIsHookingObject = false;
 	bIsHookingAnchor = false;
+	PrimaryActorTick.SetTickFunctionEnable(false);
 }
 
 void AExplorerCharacter::Server_TryHook_Implementation(FVector TraceStart, FVector TraceEnd)
@@ -138,6 +145,8 @@ void AExplorerCharacter::Server_TryHook_Implementation(FVector TraceStart, FVect
 		}
 	}
 }
+
+#pragma endregion
 
 #pragma region Hook Client Callbacks
 
